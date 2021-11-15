@@ -14,16 +14,16 @@
 param (
     [string]$size = "",
     [string]$idx = "0",
-    [string]$mkt = "en-GB",
+    [string]$mkt = "pt-BR",
     [string]$savePath = "",
     [switch]$RegisterSchedule = $false,
     [switch]$UnregisterSchedule = $false,
-    
+
     [ValidateSet("NoChange", "Center", "Tile", "Stretch", "Fit", "Fill")]
     [string]$wallpaperStyle = "NoChange"
 
 )
- 
+
 
 #   .NET class to correctly set wallpaper
 #   Adapted from: https://social.technet.microsoft.com/Forums/en-US/9af1769e-197f-4ef3-933f-83cb8f065afb/background-change
@@ -34,36 +34,34 @@ using System.Runtime.InteropServices;
 using Microsoft.Win32;
 namespace Wallpaper
 {
-    public enum Style : int {
-        NoChange, Center, Tile, Stretch, Fit, Fill
-    }
+    public enum Style : int { NoChange, Center, Tile, Stretch, Fit, Fill }
     public class Setter {
         public const int SetDesktopWallpaper = 20;
         public const int UpdateIniFile = 0x01;
         public const int SendWinIniChange = 0x02;
         [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
         private static extern int SystemParametersInfo (int uAction, int uParam, string lpvParam, int fuWinIni);
-        public static void SetWallpaper ( string path, Wallpaper.Style style ) {	  	  
+        public static void SetWallpaper ( string path, Wallpaper.Style style ) {
             RegistryKey key = Registry.CurrentUser.OpenSubKey("Control Panel\\Desktop", true);
             switch (style) {
                 case Style.Center:
-                    key.SetValue(@"WallpaperStyle", "1"); 
-                    key.SetValue(@"TileWallpaper", "0"); 
+                    key.SetValue(@"WallpaperStyle", "1");
+                    key.SetValue(@"TileWallpaper", "0");
                     break;
                 case Style.Tile:
-                    key.SetValue(@"WallpaperStyle", "1"); 
+                    key.SetValue(@"WallpaperStyle", "1");
                     key.SetValue(@"TileWallpaper", "1");
                     break;
                 case Style.Stretch:
-                    key.SetValue(@"WallpaperStyle", "2"); 
+                    key.SetValue(@"WallpaperStyle", "2");
                     key.SetValue(@"TileWallpaper", "0");
                     break;
                 case Style.Fit:
-                    key.SetValue(@"WallpaperStyle", "6"); 
+                    key.SetValue(@"WallpaperStyle", "6");
                     key.SetValue(@"TileWallpaper", "0");
                     break;
                 case Style.Fill:
-                    key.SetValue(@"WallpaperStyle", "10"); 
+                    key.SetValue(@"WallpaperStyle", "10");
                     key.SetValue(@"TileWallpaper", "0");
                     break;
                 case Style.NoChange:
@@ -84,12 +82,13 @@ namespace Wallpaper
 #   #########################################
 Function Get-IdealImageDimensionsArray($idealSize) {
     $validImageDimensionArray = New-Object System.Collections.ArrayList
-    
+
     # This should be a list of all known possible
     # image dimensions.
     # There are likely many more than this, but
     # this should cover the main ones.
 
+    $validImageDimensionArray.Add("UHD") | Out-Null
     $validImageDimensionArray.Add("1920x1200") | Out-Null
     $validImageDimensionArray.Add("1920x1080") | Out-Null   # 1920x1080 tends to exclude bing branding
     $validImageDimensionArray.Add("1366x768") | Out-Null
@@ -134,7 +133,7 @@ Function Get-Image($imageSize, $idx, $mkt) {
 
     # Build  image url
     $urlImage = "{0}{1}_{2}.jpg" -f $urlBing, $urlImageBasePath, $imageSize
-    
+
     Write-Debug "Image URL: $urlImage"
 
     if ($savePath -eq "") {
@@ -143,7 +142,7 @@ Function Get-Image($imageSize, $idx, $mkt) {
         $myPicturesFolder = $savePath
     }
 
-    $savelocation = [io.path]::combine($myPicturesFolder, 'bingimageoftheday.jpg')
+    $savelocation = [io.path]::combine($myPicturesFolder, 'bing_image_today.jpg')
 
     Try {
         Write-Debug ("Downloading image: " + $urlImage) -Verbose
@@ -151,7 +150,7 @@ Function Get-Image($imageSize, $idx, $mkt) {
         $webClient.DownloadFile($urlImage, $savelocation)
 
         ## Assume something is wrong if file doesn't exist or length is less than a 1KB
-        if (!(Test-Path $savelocation) -or ((Get-Item $savelocation).length -lt 1kb)) { 
+        if (!(Test-Path $savelocation) -or ((Get-Item $savelocation).length -lt 1kb)) {
             Write-Warning "There was a problem downloading the image $urlImage"
             $savelocation = ""
         }
@@ -159,7 +158,7 @@ Function Get-Image($imageSize, $idx, $mkt) {
     Catch [System.Net.WebException] {
         ## Assume it fails due to 404
         Write-Warning "Unable to download image $urlImage"
-    
+
         $savelocation = ""
     }
 
@@ -169,7 +168,7 @@ Function Get-Image($imageSize, $idx, $mkt) {
 
 #   Gets the current screen DPI factor
 #   #########################################
-function Get-DpiFactor {
+Function Get-DpiFactor {
     $DPISetting = (Get-ItemProperty 'HKCU:\Control Panel\Desktop\WindowMetrics' -Name AppliedDPI).AppliedDPI
     switch ($DPISetting)
     {
@@ -184,17 +183,28 @@ function Get-DpiFactor {
 #   Gets the current screen resolution for
 #   the primary monitor
 #   #########################################
-function Get-ScreenResolution {       
+Function Get-ScreenResolution {
     [void] [Reflection.Assembly]::LoadWithPartialName("System.Windows.Forms")
     $s = [System.Windows.Forms.SystemInformation]::PrimaryMonitorSize
     $dpi = Get-DpiFactor
     [decimal]$w = [math]::Floor($s.Width * $dpi)
-    [decimal]$h = [math]::Floor($s.Height * $dpi)    
+    [decimal]$h = [math]::Floor($s.Height * $dpi)
+
+    if ($h -gt 1200) { return "UHD" }
+
     return "${w}x${h}"
 }
 
+Function Get-ScreenResolution-Height {
+    [void] [Reflection.Assembly]::LoadWithPartialName("System.Windows.Forms")
+    $s = [System.Windows.Forms.SystemInformation]::PrimaryMonitorSize
+    $dpi = Get-DpiFactor
+    [decimal]$h = [math]::Floor($s.Height * $dpi)
+    return ${h}
+}
 
-function Register-Schedule($taskPath, $taskName) { 
+
+function Register-Schedule($taskPath, $taskName) {
     # Make sure task doesn't already exist
     Unregister-Schedule $taskPath $taskName
 
@@ -212,7 +222,7 @@ function Register-Schedule($taskPath, $taskName) {
 
 
 function Unregister-Schedule($taskPath, $taskName) {
-    $existingTask = Get-ScheduledTask | where { $_.TaskName -eq $taskName -and $_.TaskPath -eq $taskPath}
+    $existingTask = Get-ScheduledTask | Where-Object { $_.TaskName -eq $taskName -and $_.TaskPath -eq $taskPath}
     if ($existingTask) {
         Unregister-ScheduledTask -TaskName $taskName -Confirm:$false
         Write-Output "    Scheduled task unregistered"
@@ -246,7 +256,6 @@ if ($size -eq "") {
     $size = Get-ScreenResolution
 }
 
-
 # Get a list of the main image sizes, with the
 # specified or ideal size as the first item
 $imageSizes = Get-IdealImageDimensionsArray $size
@@ -264,16 +273,16 @@ foreach ($imageSize in $imageSizes) {
 
     if ($saveLocation -ne "") {
         # All's good, an image was saved...
-        Write-Output "... Image successfully saved to: $saveLocation" 
+        Write-Output "... Image successfully saved to: $saveLocation"
 
         # Set the image as the desktop wallpaper
-        [Wallpaper.Setter]::SetWallpaper($saveLocation, $wallpaperStyle)         
+        [Wallpaper.Setter]::SetWallpaper($saveLocation, $wallpaperStyle)
         Write-Output "... Wallpaper set with style of $wallpaperStyle"
-        
+
         # We can break out of our $imageSizes loop now
         break
     }
-    
+
     # No image saved, there must have been a problem
     Write-Warning "Unable to download image at this size: $imageSize"
 }
